@@ -1,11 +1,13 @@
 # dependencies
 /node_modules
+/functions/node_modules
+/.firebase
+/functions/.firebase
 
 # next.js build output
 /.next
-
-# firebase build artifacts
-/.firebase
+/functions/.next
+/.firebase/studyai-plus/functions/.next
 
 # production build
 /out
