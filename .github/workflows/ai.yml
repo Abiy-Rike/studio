@@ -1,0 +1,67 @@
+name: Study AI+ - Firebase Emulator (48h Auto Restart)
+
+on:
+  # Manual trigger
+  workflow_dispatch:
+
+  # Auto trigger every 2 days at 3:00 AM EAT (UTC+3)
+  schedule:
+    - cron: '0 0 */2 * *'  # 00:00 UTC = 03:00 EAT
+
+jobs:
+  run-firebase-emulator:
+    runs-on: windows-latest
+    timeout-minutes: 2880  # 48 hours
+
+    steps:
+      - name: 📦 Checkout Code
+        uses: actions/checkout@v3
+
+      - name: 🔧 Setup Node.js (v18)
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: 🔥 Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: 🔑 Authenticate Firebase CLI with Token
+        run: echo "Firebase CLI authenticated using token"
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+
+      - name: 🧠 Runtime State Check (Allow First Run, Enforce 3AM EAT Later)
+        run: |
+          $statePath = "$env:USERPROFILE\.firebase_emulator_runtime.txt"
+          $nowUtc = Get-Date
+          $eatNow = $nowUtc.AddHours(3)
+
+          Write-Output "🕒 Current EAT Time: $($eatNow.ToString('HH:mm'))"
+
+          if (-not (Test-Path $statePath)) {
+            Write-Output "🆕 First run detected — skipping time check."
+            $nowUtc.ToString("o") | Out-File -FilePath $statePath -Encoding utf8
+          } else {
+            $lastRunTime = Get-Content $statePath | Out-String | Get-Date
+            $elapsed = ($nowUtc - $lastRunTime).TotalHours
+
+            Write-Output "⏳ Elapsed time since last run: $([math]::Round($elapsed, 2)) hours"
+
+            if ($elapsed -lt 47.9 -or $eatNow.Hour -ne 3) {
+              Write-Output "❌ Either not enough time has passed or not 3AM EAT. Exiting..."
+              exit 1
+            } else {
+              Write-Output "✅ 3AM EAT and 48 hours passed. Proceeding..."
+              $nowUtc.ToString("o") | Out-File -FilePath $statePath -Encoding utf8
+            }
+          }
+
+      - name: 🚀 Start Firebase Emulators
+        run: |
+          echo "Starting Firebase Hosting Emulator for Study AI+"
+          firebase emulators:start --only hosting --project default
+
+      - name: 💤 Keep Emulators Alive for 48 Hours
+        run: |
+          echo "Keeping emulator alive for 48 hours..."
+          Start-Sleep -Seconds 172800
