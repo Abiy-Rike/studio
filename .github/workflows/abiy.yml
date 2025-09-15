@@ -1,0 +1,48 @@
+name: Study AI+ - App Runner with ngrok (48h Auto Restart)
+
+on:
+  # Manual trigger
+  workflow_dispatch:
+
+  # Auto trigger every 2 days at 3:00 AM EAT (UTC+3)
+  schedule:
+    - cron: '0 0 */2 * *'  # 00:00 UTC = 03:00 EAT
+
+jobs:
+  run-app:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2880  # 48 hours
+
+    steps:
+      - name: 📦 Checkout Code
+        uses: actions/checkout@v3
+
+      - name: 🔧 Setup Node.js (v18)
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: 📥 Install Dependencies
+        run: npm install
+
+      - name: 🚀 Start App (npm run dev) + ngrok
+        env:
+          NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
+        run: |
+          echo "Starting Next.js app with npm run dev..."
+          npm run dev > app.log 2>&1 &
+
+          # Install ngrok
+          npm install -g ngrok
+          ngrok authtoken $NGROK_AUTH_TOKEN
+          ngrok http 3000 --log=stdout > ngrok.log &
+
+          # Wait a bit for app + ngrok to boot
+          sleep 20
+          echo "🌍 Public ngrok URL:"
+          grep -o 'https://[a-zA-Z0-9.-]*\.ngrok-free\.app' ngrok.log | head -n 1
+
+      - name: 💤 Keep Alive for 48 Hours
+        run: |
+          echo "Keeping app + ngrok tunnel alive for 48 hours..."
+          sleep 172800
