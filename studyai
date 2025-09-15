@@ -1,0 +1,54 @@
+name: Study AI+ - Firebase Emulator (48h Auto Restart)
+
+on:
+  # Manual trigger
+  workflow_dispatch:
+
+  # Auto trigger every 2 days at 3:00 AM EAT (UTC+3)
+  schedule:
+    - cron: '0 0 */2 * *'  # 00:00 UTC = 03:00 EAT
+
+jobs:
+  run-firebase-emulator:
+    runs-on: windows-latest
+    timeout-minutes: 2880  # 48 hours
+
+    steps:
+      - name: 📦 Checkout Code
+        uses: actions/checkout@v3
+
+      - name: 🔧 Setup Node.js (v18)
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: 🔥 Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: 🔑 Authenticate Firebase CLI with Token
+        run: |
+          echo "Firebase CLI authenticated using token"
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+
+      - name: ⏰ Conditionally Enforce Time Check for 3AM EAT
+        if: github.event_name == 'schedule'
+        run: |
+          $currentTime = (Get-Date).ToUniversalTime().AddHours(3)
+          Write-Output "🕒 EAT Time: $($currentTime.ToString('HH:mm'))"
+          if ($currentTime.Hour -ne 3) {
+            Write-Output "❌ Not 3 AM EAT. Exiting scheduled run..."
+            exit 1
+          } else {
+            Write-Output "✅ It's 3 AM EAT. Scheduled run proceeds..."
+          }
+
+      - name: 🚀 Start Firebase Emulators
+        run: |
+          echo "Starting Firebase Hosting Emulator for Study AI+"
+          firebase emulators:start --only hosting --project default
+
+      - name: 💤 Keep Emulators Alive for 48 Hours
+        run: |
+          echo "Sleeping for 48 hours to keep emulator alive..."
+          Start-Sleep -Seconds 172800
