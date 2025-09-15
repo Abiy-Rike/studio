@@ -1,0 +1,80 @@
+name: Study AI+ - Firebase Emulator (48h Auto Restart with ngrok)
+
+on:
+  # Manual trigger
+  workflow_dispatch:
+
+  # Auto trigger every 2 days at 3:00 AM EAT (UTC+3)
+  schedule:
+    - cron: '0 0 */2 * *'  # 00:00 UTC = 03:00 EAT
+
+jobs:
+  run-firebase-emulator:
+    runs-on: ubuntu-latest
+    timeout-minutes: 2880  # 48 hours
+
+    steps:
+      - name: 📦 Checkout Code
+        uses: actions/checkout@v3
+
+      - name: 🔧 Setup Node.js (v18)
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: 🔥 Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: 🔑 Authenticate Firebase CLI with Token
+        run: echo "Using Firebase Token"
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+
+      - name: 🧠 Runtime State Check (Allow First Run, Enforce 3AM EAT Later)
+        run: |
+          statePath="$HOME/.firebase_emulator_runtime.txt"
+          nowUtc=$(date -u +%s)
+          eatHour=$(date -u +"%H" -d "3 hour")
+
+          echo "🕒 Current EAT Hour: $eatHour"
+
+          if [ ! -f "$statePath" ]; then
+            echo "🆕 First run detected — skipping time check."
+            echo $nowUtc > $statePath
+          else
+            lastRun=$(cat $statePath)
+            elapsed=$(( (nowUtc - lastRun) / 3600 ))
+
+            echo "⏳ Elapsed time since last run: $elapsed hours"
+
+            if [ $elapsed -lt 48 ] || [ $eatHour -ne 3 ]; then
+              echo "❌ Either not enough time has passed or not 3AM EAT. Exiting..."
+              exit 1
+            else
+              echo "✅ 3AM EAT and 48 hours passed. Proceeding..."
+              echo $nowUtc > $statePath
+            fi
+          fi
+
+      - name: 🚀 Start Firebase Hosting Emulator with ngrok
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+          NGROK_AUTH_TOKEN: ${{ secrets.NGROK_AUTH_TOKEN }}
+        run: |
+          echo "Starting Firebase Hosting Emulator for Study AI+"
+          cd ${{ github.workspace }}
+          firebase emulators:start --only hosting --project studyai-3ec81 --token $FIREBASE_TOKEN > emulator.log 2>&1 &
+          
+          # Install ngrok
+          npm install -g ngrok
+          ngrok authtoken $NGROK_AUTH_TOKEN
+          ngrok http 5000 --log=stdout > ngrok.log &
+          
+          sleep 15
+          echo "🌍 Public ngrok URL:"
+          grep -o 'https://[a-zA-Z0-9.-]*\.ngrok-free\.app' ngrok.log | head -n 1
+
+      - name: 💤 Keep Alive for 48 Hours
+        run: |
+          echo "Keeping emulator + ngrok tunnel alive for 48 hours..."
+          sleep 172800
