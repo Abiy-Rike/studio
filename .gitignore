@@ -11,3 +11,4 @@ node_modules
 functions/.next
 functions/node_modules
 hosting/_next
+.env
